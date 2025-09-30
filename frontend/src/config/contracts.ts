@@ -1,5 +1,5 @@
 // ConfidentialPersona contract deployed on Sepolia (update address after deploy)
-export const CONTRACT_ADDRESS = '0xee8AF2C8CB7bbC2B0BDDCdD3428Af0dcCe7485BD';
+export const CONTRACT_ADDRESS = '0x33Ce23b674C6aEA6E82B2C3bd54cB82c1c37000d';
 
 // ABI for ConfidentialPersona – copied from contract interface
 export const CONTRACT_ABI = [
