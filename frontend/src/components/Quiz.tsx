@@ -72,6 +72,7 @@ export function Quiz({ onSubmitted }: Props) {
   return (
     <div className="card">
       <h2 className="title">Personality Quiz</h2>
+      <div>All your selection will be encrypted. Onchain persona analysis.</div>
       <div className="list">
         {QUESTIONS.map(q => (
           <div key={q.id} className="q">
