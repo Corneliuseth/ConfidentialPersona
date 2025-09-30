@@ -1,99 +1,73 @@
+import { FhevmType } from "@fhevm/hardhat-plugin";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
-task("task:getQuestion")
-  .addParam("contract", "The address of the ConfidentialPersona contract")
-  .addParam("questionid", "The question ID (0-4)")
-  .setAction(async function (taskArguments: TaskArguments, { ethers }) {
-    const contractFactory = await ethers.getContractFactory("ConfidentialPersona");
-    const contract = contractFactory.attach(taskArguments.contract);
+task("persona:address", "Prints the ConfidentialPersona address").setAction(async function (_: TaskArguments, hre) {
+  const { deployments } = hre;
+  const d = await deployments.get("ConfidentialPersona");
+  console.log("ConfidentialPersona address:", d.address);
+});
 
-    const questionData = await contract.getQuestion(taskArguments.questionid);
-    console.log(`Question ${taskArguments.questionid}:`);
-    console.log(`Text: ${questionData[0]}`);
-    console.log(`Options: ${questionData[1].join(", ")}`);
-    console.log(`Option count: ${questionData[2]}`);
+task("persona:set-questions", "Set quiz question definitions")
+  .addOptionalParam("ids", "Comma-separated ids, e.g., 1,2,3,4,5")
+  .addOptionalParam("opts", "Comma-separated option counts, e.g., 4,4,3,2,4")
+  .setAction(async function (args: TaskArguments, hre) {
+    const { ethers, deployments } = hre;
+    const d = await deployments.get("ConfidentialPersona");
+    const contract = await ethers.getContractAt("ConfidentialPersona", d.address);
+
+    const ids: number[] = (args.ids ? String(args.ids) : "1,2,3,4,5").split(",").map((s: string) => parseInt(s.trim()));
+    const opts: number[] = (args.opts ? String(args.opts) : "4,4,4,4,4").split(",").map((s: string) => parseInt(s.trim()));
+
+    const tx = await contract.setQuestions(ids, opts);
+    console.log("Submitting setQuestions tx:", tx.hash);
+    await tx.wait();
+    console.log("Questions set.");
   });
 
-task("task:hasUserCompleted")
-  .addParam("contract", "The address of the ConfidentialPersona contract")
-  .addParam("user", "The user address to check")
-  .setAction(async function (taskArguments: TaskArguments, { ethers }) {
-    const contractFactory = await ethers.getContractFactory("ConfidentialPersona");
-    const contract = contractFactory.attach(taskArguments.contract);
-
-    const result = await contract.hasUserCompleted(taskArguments.user);
-    console.log(`User ${taskArguments.user}:`);
-    console.log(`Has completed: ${result[0]}`);
-    console.log(`Timestamp: ${result[1].toString()}`);
+task("persona:decrypt", "Decrypt one answer for a user")
+  .addParam("user", "User address")
+  .addParam("qid", "Question id")
+  .setAction(async function (args: TaskArguments, hre) {
+    const { ethers, deployments, fhevm } = hre;
+    await fhevm.initializeCLIApi();
+    const d = await deployments.get("ConfidentialPersona");
+    const contract = await ethers.getContractAt("ConfidentialPersona", d.address);
+    const enc = await contract.getAnswer(args.user, parseInt(args.qid));
+    if (enc === ethers.ZeroHash) {
+      console.log("No answer or not submitted.");
+      return;
+    }
+    const [signer] = await ethers.getSigners();
+    const clear = await fhevm.userDecryptEuint(FhevmType.euint8, enc, d.address, signer);
+    console.log(`Decrypted answer for qid ${args.qid}:`, clear);
   });
 
-task("task:submitAnswers")
-  .addParam("contract", "The address of the ConfidentialPersona contract")
-  .addParam("answers", "Comma-separated list of answers (e.g., '0,1,2,0,1')")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, fhevm }) {
-    const signers = await ethers.getSigners();
-    const user = signers[1]; // Use second signer as test user
+task("persona:submit-sample", "Submit five answers for the sender")
+  .addOptionalParam("ans", "Comma-separated answers 1..4, e.g., 1,2,3,4,2")
+  .setAction(async function (args: TaskArguments, hre) {
+    const { ethers, deployments, fhevm } = hre;
+    const d = await deployments.get("ConfidentialPersona");
+    const contract = await ethers.getContractAt("ConfidentialPersona", d.address);
 
-    const contractFactory = await ethers.getContractFactory("ConfidentialPersona");
-    const contract = contractFactory.attach(taskArguments.contract);
-
-    const answerArray = taskArguments.answers.split(",").map((a: string) => parseInt(a.trim()));
-
-    if (answerArray.length !== 5) {
-      throw new Error("Must provide exactly 5 answers");
+    const answers: number[] = (args.ans ? String(args.ans) : "1,2,3,4,2").split(",").map((s: string) => parseInt(s.trim()));
+    if (answers.length !== 5) {
+      throw new Error("Provide exactly 5 answers");
     }
 
-    // Create encrypted inputs
-    const input = fhevm.createEncryptedInput(taskArguments.contract, user.address);
+    const [signer] = await ethers.getSigners();
+    const input = await fhevm.createEncryptedInput(d.address, signer.address).add8(answers[0]).add8(answers[1]).add8(answers[2]).add8(answers[3]).add8(answers[4]).encrypt();
 
-    // Add all 5 answers
-    answerArray.forEach(answer => {
-      input.add8(answer);
-    });
-
-    const encryptedInput = await input.encrypt();
-
-    // Submit answers
-    const tx = await contract.connect(user).submitAnswers(
-      [
-        encryptedInput.handles[0],
-        encryptedInput.handles[1],
-        encryptedInput.handles[2],
-        encryptedInput.handles[3],
-        encryptedInput.handles[4]
-      ],
-      encryptedInput.inputProof
-    );
-
+    const qids = [1, 2, 3, 4, 5];
+    const tx = await contract.connect(signer).submitAnswers(qids, [
+      input.handles[0],
+      input.handles[1],
+      input.handles[2],
+      input.handles[3],
+      input.handles[4],
+    ], input.inputProof);
+    console.log("submitAnswers tx:", tx.hash);
     await tx.wait();
-    console.log(`Answers submitted successfully! Transaction: ${tx.hash}`);
+    console.log("Submitted answers for sender");
   });
 
-task("task:getUserAnswer")
-  .addParam("contract", "The address of the ConfidentialPersona contract")
-  .addParam("questionid", "The question ID (0-4)")
-  .setAction(async function (taskArguments: TaskArguments, { ethers }) {
-    const signers = await ethers.getSigners();
-    const user = signers[1]; // Use second signer as test user
-
-    const contractFactory = await ethers.getContractFactory("ConfidentialPersona");
-    const contract = contractFactory.attach(taskArguments.contract);
-
-    const encryptedAnswer = await contract.connect(user).getUserAnswer(taskArguments.questionid);
-    console.log(`Encrypted answer for question ${taskArguments.questionid}: ${encryptedAnswer}`);
-  });
-
-task("task:getAllUserAnswers")
-  .addParam("contract", "The address of the ConfidentialPersona contract")
-  .setAction(async function (taskArguments: TaskArguments, { ethers }) {
-    const signers = await ethers.getSigners();
-    const user = signers[1]; // Use second signer as test user
-
-    const contractFactory = await ethers.getContractFactory("ConfidentialPersona");
-    const contract = contractFactory.attach(taskArguments.contract);
-
-    const result = await contract.connect(user).getAllUserAnswers();
-    console.log(`All encrypted answers: ${result[0]}`);
-    console.log(`Timestamp: ${result[1].toString()}`);
-  });
