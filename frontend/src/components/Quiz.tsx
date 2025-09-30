@@ -72,7 +72,7 @@ export function Quiz({ onSubmitted }: Props) {
   return (
     <div className="card">
       <h2 className="title">Personality Quiz</h2>
-      <div>All your selection will be encrypted. Onchain persona analysis.</div>
+      <div>Discover your unique personality traits through our privacy-first assessment. All selections are encrypted on-chain, ensuring complete confidentiality.</div>
       <div className="list">
         {QUESTIONS.map(q => (
           <div key={q.id} className="q">
@@ -94,7 +94,7 @@ export function Quiz({ onSubmitted }: Props) {
         ))}
       </div>
       <button className="primary" disabled={!canSubmit || submitting} onClick={submit}>
-        {submitting ? 'Submitting…' : 'Submit'}
+        <span>{submitting ? 'Encrypting & Submitting…' : 'Submit Encrypted Answers'}</span>
       </button>
     </div>
   );

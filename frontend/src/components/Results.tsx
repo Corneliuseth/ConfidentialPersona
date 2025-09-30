@@ -79,22 +79,41 @@ export function Results({ onDecrypted, lastDecrypted }: Props) {
   }, [lastDecrypted]);
 
   if (!address) {
-    return <div className="card"><p>Please connect wallet</p></div>;
+    return (
+      <div className="card">
+        <h2 className="title">Connect Your Wallet</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', marginTop: '1rem' }}>
+          Please connect your wallet to view your personality assessment results.
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className="card">
-      <h2 className="title">My Results</h2>
+      <h2 className="title">Your Personality Profile</h2>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', marginBottom: '2rem' }}>
+        Your answers are securely stored on-chain with end-to-end encryption. Decrypt them to reveal your unique personality traits.
+      </p>
       <div className="block">
         <button className="primary" onClick={decrypt} disabled={decLoading || !answersData}>
-          {decLoading ? 'Decrypting…' : 'Decrypt My Answers'}
+          <span>{decLoading ? 'Decrypting Your Profile…' : 'Decrypt My Results'}</span>
         </button>
       </div>
       {traits && (
         <div className="results">
-          <div className="res-item"><span className="label">Social: </span>{traits.extrovert}</div>
-          <div className="res-item"><span className="label">Planning: </span>{traits.planner}</div>
-          <div className="res-item"><span className="label">Thinking: </span>{traits.thinker}</div>
+          <div className="res-item">
+            <span className="label">Social Style</span>
+            <span>{traits.extrovert}</span>
+          </div>
+          <div className="res-item">
+            <span className="label">Planning Style</span>
+            <span>{traits.planner}</span>
+          </div>
+          <div className="res-item">
+            <span className="label">Thinking Style</span>
+            <span>{traits.thinker}</span>
+          </div>
         </div>
       )}
     </div>
